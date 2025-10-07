@@ -64,7 +64,10 @@ def convert_skype_log(input_file, output_folder, max_file_size_kb=1000):
         for msg in messages:
             timestamp = msg.get("originalarrivaltime", "Unknown Time")
             sender = msg.get("displayName", "Unknown Sender")
-            text = msg.get("content", "").replace("\n", " ")  # 改行をスペースに
+            text = msg.get("content", "")
+            if not isinstance(text, str):
+                text = str(text)  # contentが文字列でない場合に文字列に変換
+            text = text.replace("\n", " ")  # 改行をスペースに
 
             try:
                 msg_date = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
@@ -85,6 +88,8 @@ def convert_skype_log(input_file, output_folder, max_file_size_kb=1000):
             # ファイルサイズが上限を超えたら保存
             if current_file_size + message_size > max_file_size_kb:
                 save_current_log()
+                file_index += 1  # 次のファイルに移行するためインクリメント
+                current_file_size = 0  # ファイルサイズをリセット
 
             file_content.append(message_line)
             current_file_size += message_size
