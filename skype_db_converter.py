@@ -9,6 +9,8 @@ def sanitize_filename(name, max_length=100):
         return "Unknown_Chat"
 
     # 不正な文字を置換（Windowsに使えない文字: \ / : * ? " < > |）
+    # 非文字列が渡される場合を考慮して文字列化
+    name = str(name)
     sanitized = "".join(c if c.isalnum() or c in "._-" else "_" for c in name)
 
     # ✅ 末尾の `.` や ` ` は `_` に変換（削除ではなく置換）
@@ -79,11 +81,29 @@ def extract_skype_logs(db_file, output_folder, max_file_size_kb=1000):
             timestamp, sender, text = msg
             text = text.replace("\n", " ") if text else "(No message)"
 
+            # timestamp が整数（エポック秒）か小数（ミリ秒）の場合に対応
+            msg_date = None
             try:
-                msg_date = datetime.utcfromtimestamp(timestamp)
+                if isinstance(timestamp, (int, float)):
+                    # 10桁なら秒、13桁ならミリ秒
+                    ts_int = int(timestamp)
+                    if ts_int > 1e12:  # ミリ秒
+                        msg_date = datetime.utcfromtimestamp(ts_int / 1000.0)
+                    else:
+                        msg_date = datetime.utcfromtimestamp(ts_int)
+                else:
+                    # 文字列でISO等が入っている可能性
+                    try:
+                        msg_date = datetime.fromisoformat(str(timestamp))
+                    except Exception:
+                        msg_date = None
+            except Exception:
+                msg_date = None
+
+            if msg_date:
                 year, month = msg_date.year, msg_date.month
                 timestamp_str = msg_date.strftime("%Y-%m-%d %H:%M:%S")
-            except:
+            else:
                 year, month, timestamp_str = 9999, 99, "Unknown Time"
 
             if current_year is None or current_month is None:

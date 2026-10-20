@@ -7,6 +7,8 @@ def sanitize_filename(name):
     """ファイル名に使用できない文字を置換"""
     if not name:  # Noneや空文字チェック
         return ""
+    # 非文字列（数値など）が渡された場合に備えて文字列化
+    name = str(name)
     return "".join(c if c.isalnum() or c in "._-" else "_" for c in name)
 
 def convert_skype_log(input_file, output_folder, max_file_size_kb=1000):
@@ -69,11 +71,28 @@ def convert_skype_log(input_file, output_folder, max_file_size_kb=1000):
                 text = str(text)  # contentが文字列でない場合に文字列に変換
             text = text.replace("\n", " ")  # 改行をスペースに
 
-            try:
-                msg_date = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
+            # ISO8601系のタイムスタンプを柔軟にパース（ミリ秒あり/なし、Zを含む）
+            def parse_iso_timestamp(ts):
+                if not isinstance(ts, str):
+                    return None
+                for fmt in ("%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ"):
+                    try:
+                        return datetime.strptime(ts, fmt)
+                    except Exception:
+                        pass
+                # 最終手段: Z を +00:00 に置き換えて fromisoformat を試す
+                try:
+                    if ts.endswith('Z'):
+                        return datetime.fromisoformat(ts.replace('Z', '+00:00'))
+                except Exception:
+                    pass
+                return None
+
+            msg_date = parse_iso_timestamp(timestamp)
+            if msg_date:
                 year, month = msg_date.year, msg_date.month
                 timestamp = msg_date.strftime("%Y-%m-%d %H:%M:%S")
-            except:
+            else:
                 year, month = 9999, 99  # 不明な場合
 
             message_line = f"[{timestamp}] {sender}: {text}\n"
